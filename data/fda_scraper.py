@@ -33,7 +33,8 @@ def search_trials(
             params["filter.phase"] = phase
         if status:
             params["filter.overallStatus"] = status
-        resp = httpx.get(CT_API_BASE, params=params, timeout=TIMEOUT)
+        headers = {"User-Agent": "ai-fund/1.0 (research; contact@example.com)"}
+        resp = httpx.get(CT_API_BASE, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
 

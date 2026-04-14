@@ -51,10 +51,10 @@ class Settings(BaseSettings):
 
     # --- Alpha engine ---
     agent_weights: dict = Field(default={
-        "macro": 0.20, "pharma": 0.20, "tech": 0.15,
-        "energy": 0.15, "political": 0.15, "science": 0.05, "quant": 0.10,
+        "macro": 0.25, "pharma": 0.25, "tech": 0.20,
+        "energy": 0.20, "political": 0.20, "science": 0.10, "quant": 0.15,
     })
-    alpha_threshold: float = Field(default=0.25, description="Min |score| to trade")
+    alpha_threshold: float = Field(default=0.12, description="Min |score| to trade")
     vol_target: float = Field(default=0.15, description="Annualized portfolio vol target")
     horizon_discounts: dict = Field(default={"30d": 1.0, "90d": 0.7, "180d": 0.4})
 
