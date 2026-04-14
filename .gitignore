@@ -24,5 +24,16 @@ dashboard/node_modules/
 dashboard/.next/
 dashboard/dist/
 
+# Python cache
+__pycache__/
+*.pyc
+
+# SQLite WAL/SHM
+*.db-shm
+*.db-wal
+
+# Virtual environment
+.venv/
+
 # macOS
 .DS_Store
