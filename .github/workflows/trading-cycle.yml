@@ -1,0 +1,52 @@
+name: Trading Cycle
+
+on:
+  schedule:
+    # Market hours: Mon-Fri, every hour 9:30-15:00 ET
+    # GitHub cron is UTC, ET = UTC-4 (EDT) or UTC-5 (EST)
+    # 9:30 ET = 13:30 UTC, 15:00 ET = 19:00 UTC
+    - cron: '30 13 * * 1-5'   # 9:30 ET - market open
+    - cron: '0 15 * * 1-5'    # 11:00 ET
+    - cron: '0 16 * * 1-5'    # 12:00 ET
+    - cron: '0 17 * * 1-5'    # 13:00 ET
+    - cron: '0 18 * * 1-5'    # 14:00 ET
+    - cron: '0 19 * * 1-5'    # 15:00 ET
+  workflow_dispatch: {}        # manual trigger for testing
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt && playwright install chromium
+
+      - name: Run trading cycle
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ALPACA_KEY: ${{ secrets.ALPACA_KEY }}
+          ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+          ALPACA_PAPER: 'true'
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+          QUIVER_API_KEY: ${{ secrets.QUIVER_API_KEY }}
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: python main.py cycle
