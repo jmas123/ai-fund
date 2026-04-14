@@ -7,7 +7,7 @@ from config.settings import settings
 from memory.working_memory import get_portfolio_state, get_regime, set_signal
 from data.fda_scraper import search_trials, get_fda_approvals
 from data.news_scraper import search_headlines
-from data.quiver_feeds import get_congress_trades_for_tickers, get_insider_trades, get_lobbying_batch
+from data.high_finance_client import get_insider_trades_batch, get_politician_trades
 from memory.semantic import get_rules
 from memory.episodic import query_similar_setups
 from agents.base import call_claude, neutral_signal, slim_similar, SIGNAL_SCHEMA
@@ -25,9 +25,9 @@ COMPANY_MAP = {
 }
 
 SYSTEM_PROMPT = f"""You are a pharmaceutical sector specialist for an autonomous hedge fund.
-Analyze clinical trials, FDA events, news, congressional stock trades, insider trading, and lobbying.
-Congressional buys in pharma tickers ahead of FDA decisions are highly informative. Changes in
-lobbying spend signal regulatory strategy shifts. Use agent="pharma".
+Analyze clinical trials, FDA events, news, congressional stock trades, and insider trading.
+Congressional buys in pharma tickers ahead of FDA decisions are highly informative.
+Insider buys from executives are bullish; cluster sells at highs are bearish. Use agent="pharma".
 Return a JSON array — one signal per ticker.
 Keep rationale under 50 words per ticker. Be terse.
 {SIGNAL_SCHEMA}"""
@@ -48,10 +48,9 @@ def run() -> list[dict]:
 
     fda_events = get_fda_approvals(5)
     news = search_headlines("pharma drug FDA approval")
-    congress_trades = get_congress_trades_for_tickers(TICKERS)
-    all_insider_trades = get_insider_trades(limit=50)
-    pharma_insider_trades = [t for t in all_insider_trades if t.get("Ticker") in TICKERS]
-    lobbying_data = get_lobbying_batch(TICKERS)
+    congress_trades = get_politician_trades(days=14, min_relevance="low")
+    pharma_congress = [t for t in congress_trades if t.get("ticker") in TICKERS]
+    insider_data = get_insider_trades_batch(TICKERS, days=60)
     rules = get_rules("pharma")
     similar = query_similar_setups({"agent": "pharma", "ticker": "PHARMA"})
 
@@ -59,9 +58,8 @@ def run() -> list[dict]:
         "tickers": TICKERS,
         "clinical_trials": trials_data,
         "fda_events": fda_events,
-        "congress_trades": congress_trades,
-        "insider_trades": pharma_insider_trades,
-        "lobbying_spend": lobbying_data,
+        "congress_trades": pharma_congress,
+        "insider_trades": insider_data,
         "news_headlines": [h["headline"] for h in news[:5]],
         "semantic_rules": [r["rule"] for r in rules[:3]],
         "similar_past_setups": slim_similar(similar[:3]),

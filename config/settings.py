@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Pinecone
     pinecone_api_key: str = ""
 
+    # High Finance internal API
+    high_finance_url: str = ""
+
     # Redis
     redis_host: str = "localhost"
     redis_port: int = 6380

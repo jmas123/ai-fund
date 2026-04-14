@@ -7,7 +7,7 @@ import httpx
 from config.settings import settings
 from memory.working_memory import get_portfolio_state, get_regime, set_signal
 from data.news_scraper import search_headlines
-from data.quiver_feeds import get_congress_trades_for_tickers, get_insider_trades, get_gov_contracts_batch
+from data.high_finance_client import get_insider_trades_batch, get_politician_trades
 from memory.semantic import get_rules
 from memory.episodic import query_similar_setups
 from agents.base import call_claude, neutral_signal, slim_similar, SIGNAL_SCHEMA
@@ -19,9 +19,9 @@ TICKERS = ["XOM", "CVX", "COP", "SLB"]
 EIA_BASE = "https://api.eia.gov/v2/petroleum/pri/spt/data/"
 
 SYSTEM_PROMPT = f"""You are an energy sector specialist for an autonomous hedge fund.
-Analyze oil/gas prices, EIA data, news, congressional stock trades, insider trading, and government contracts.
-Congressional trades in energy tickers signal policy expectations. DOE/DOD contracts are large and
-affect revenue. Use agent="energy".
+Analyze oil/gas prices, EIA data, news, congressional stock trades, and insider trading.
+Congressional trades in energy tickers signal policy expectations. Insider buys from
+C-suite executives are bullish; cluster sells at highs are bearish. Use agent="energy".
 Return a JSON array — one signal per ticker.
 {SIGNAL_SCHEMA}"""
 
@@ -33,19 +33,17 @@ def run() -> list[dict]:
 
     oil_prices = _fetch_oil_prices()
     news = search_headlines("oil gas energy prices OPEC crude")
-    congress_trades = get_congress_trades_for_tickers(TICKERS)
-    all_insider_trades = get_insider_trades(limit=50)
-    energy_insider_trades = [t for t in all_insider_trades if t.get("Ticker") in TICKERS]
-    gov_contracts = get_gov_contracts_batch(TICKERS)
+    congress_trades = get_politician_trades(days=14, min_relevance="low")
+    energy_congress = [t for t in congress_trades if t.get("ticker") in TICKERS]
+    insider_data = get_insider_trades_batch(TICKERS, days=60)
     rules = get_rules("energy")
     similar = query_similar_setups({"agent": "energy", "ticker": "ENERGY"})
 
     user_content = json.dumps({
         "tickers": TICKERS,
         "oil_prices": oil_prices,
-        "congress_trades": congress_trades,
-        "insider_trades": energy_insider_trades,
-        "government_contracts": gov_contracts,
+        "congress_trades": energy_congress,
+        "insider_trades": insider_data,
         "news_headlines": [h["headline"] for h in news[:10]],
         "portfolio": portfolio,
         "regime": regime,

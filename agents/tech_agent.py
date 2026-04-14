@@ -8,7 +8,7 @@ from config.settings import settings
 from memory.working_memory import get_portfolio_state, get_regime, set_signal
 from data.polygon_scraper import scrape_multiple
 from data.news_scraper import search_headlines
-from data.quiver_feeds import get_congress_trades_for_tickers, get_insider_trades, get_gov_contracts_batch
+from data.high_finance_client import get_insider_summary_batch, get_options_summary_batch, get_politician_trades
 from memory.semantic import get_rules
 from memory.episodic import query_similar_setups
 from agents.base import call_claude, neutral_signal, slim_similar, SIGNAL_SCHEMA
@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 TICKERS = ["NVDA", "MSFT", "AAPL", "GOOGL", "META"]
 
 SYSTEM_PROMPT = f"""You are a technology sector specialist for an autonomous hedge fund.
-Analyze price data, news, congressional stock trades, insider trading, and government contracts.
+Analyze price data, news, congressional stock trades, insider trading, and options flow.
 Congressional buys are high-signal. Insider buys are bullish; cluster sells at highs are bearish.
-MSFT and GOOGL win large government contracts that affect revenue. Use agent="tech".
+Options flow: unusual call sweeps are bullish, unusual put sweeps are bearish.
+High put/call ratio signals fear; low ratio signals complacency. Use agent="tech".
 Return a JSON array — one signal per ticker.
 {SIGNAL_SCHEMA}"""
 
@@ -32,19 +33,19 @@ def run() -> list[dict]:
 
     price_data = asyncio.run(_get_prices())
     news = search_headlines("technology stocks NVDA MSFT AAPL earnings")
-    congress_trades = get_congress_trades_for_tickers(TICKERS)
-    all_insider_trades = get_insider_trades(limit=50)
-    tech_insider_trades = [t for t in all_insider_trades if t.get("Ticker") in TICKERS]
-    gov_contracts = get_gov_contracts_batch(TICKERS)
+    congress_trades = get_politician_trades(days=14, min_relevance="low")
+    tech_congress = [t for t in congress_trades if t.get("ticker") in TICKERS]
+    insider_data = get_insider_summary_batch(TICKERS, days=60)
+    options_data = get_options_summary_batch(TICKERS)
     rules = get_rules("tech")
     similar = query_similar_setups({"agent": "tech", "ticker": "TECH"})
 
     user_content = json.dumps({
         "tickers": TICKERS,
         "price_data": price_data,
-        "congress_trades": congress_trades,
-        "insider_trades": tech_insider_trades,
-        "government_contracts": gov_contracts,
+        "congress_trades": tech_congress,
+        "insider_trades": insider_data,
+        "options_flow": options_data,
         "news_headlines": [h["headline"] for h in news[:10]],
         "portfolio": portfolio,
         "regime": regime,
@@ -53,7 +54,7 @@ def run() -> list[dict]:
     }, indent=2)
 
     try:
-        signals = call_claude(SYSTEM_PROMPT, user_content, max_tokens=2048)
+        signals = call_claude(SYSTEM_PROMPT, user_content, max_tokens=3000)
     except Exception as e:
         logger.error("Tech agent failed: %s", e)
         signals = [neutral_signal("tech", t, str(e)) for t in TICKERS]

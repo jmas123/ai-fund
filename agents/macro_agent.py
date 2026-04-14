@@ -6,6 +6,7 @@ import logging
 from config.settings import settings
 from memory.working_memory import get_portfolio_state, get_regime, set_signal, set_regime
 from data.macro_feeds import get_macro_data
+from data.high_finance_client import get_macro_snapshot
 from memory.semantic import get_rules
 from memory.episodic import query_similar_setups
 from agents.base import call_claude, neutral_signal, slim_similar, SIGNAL_SCHEMA
@@ -25,11 +26,13 @@ def run() -> dict:
     current_regime = get_regime()
 
     macro_data = get_macro_data()
+    hf_macro = get_macro_snapshot()
     rules = get_rules("macro")
     similar = query_similar_setups({"agent": "macro", "ticker": "SPY"})
 
     user_content = json.dumps({
         "macro_data": macro_data,
+        "high_finance_macro": hf_macro,
         "current_portfolio": portfolio,
         "current_regime": current_regime,
         "semantic_rules": rules,

@@ -7,7 +7,7 @@ import math
 from config.settings import settings
 from memory.working_memory import get_portfolio_state, get_regime, get_all_signals, set_signal
 from data.price_feeds import get_bars
-from data.quiver_feeds import get_dark_pool_batch
+from data.high_finance_client import get_options_summary_batch
 from memory.semantic import get_rules
 from memory.episodic import query_similar_setups
 from agents.base import call_claude, neutral_signal, slim_similar, SIGNAL_SCHEMA
@@ -25,9 +25,9 @@ TRADING_DAYS = 252
 RISK_FREE = 0.05
 
 SYSTEM_PROMPT = f"""You are a quantitative analyst for an autonomous hedge fund.
-Analyze portfolio, momentum, volatility, existing signals, and dark pool activity.
-Unusual spikes in dark pool short volume relative to total volume indicate institutional selling pressure.
-Sustained dark pool activity with stable prices suggests accumulation.
+Analyze portfolio, momentum, volatility, existing signals, and options flow.
+High put/call ratio signals institutional hedging/fear. Unusual call sweeps are bullish;
+unusual put sweeps are bearish. IV percentile above 80 means options are expensive (expect vol).
 Use agent="quant", ticker="PORTFOLIO".
 Sizing only — no new trade ideas. Also include "sizing_recommendations":{{"TICKER":{{"current_weight":0,
 "recommended_weight":0,"reason":"..."}}}}, "portfolio_metrics":{{"concentration_risk":0-1,
@@ -51,7 +51,7 @@ def run() -> dict:
     }
 
     price_data = _get_price_summaries()
-    dark_pool_data = get_dark_pool_batch(ALL_TICKERS)
+    options_flow = get_options_summary_batch([t for t in ALL_TICKERS if t != "SPY"])
     rules = get_rules("quant")
     similar = query_similar_setups({"agent": "quant", "ticker": "PORTFOLIO"})
 
@@ -60,7 +60,7 @@ def run() -> dict:
         "regime": regime,
         "signal_summary": signal_summary,
         "price_summaries": price_data,
-        "dark_pool_activity": dark_pool_data,
+        "options_flow": options_flow,
         "semantic_rules": [r["rule"] for r in rules[:3]],
         "risk_limits": {
             "max_single_position": settings.max_single_position,
